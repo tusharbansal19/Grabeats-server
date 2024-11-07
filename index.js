@@ -1,7 +1,7 @@
 let express=require("express");
 
 require("dotenv").config();
-
+const router=require("./routes//MailRoutes");
 let cookieparser=require("cookie-parser")
 let app=express();
 
@@ -13,6 +13,8 @@ let {PORT_NO}=process.env;
 app.use(cors());
 app.use(express.json()); 
 app.use(cookieparser())
+app.use("/user",router);    
+
 // ------------main routes---------------
 app.get("/", function(req, res){
 
@@ -25,7 +27,6 @@ app.get("/info", function(req, res){
     console.log("new express.request");
     res.json({"message":"this server id deployed by tushar bansal"})
     })
-    
 
 
 app.listen(PORT_NO,()=>console.log("express run at port no :"+PORT_NO));
