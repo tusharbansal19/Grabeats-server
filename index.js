@@ -20,5 +20,12 @@ console.log("new express.request");
 res.json({"message":"hello from server"})
 })
 
+app.get("/info", function(req, res){
+
+    console.log("new express.request");
+    res.json({"message":"this server id deployed by tushar bansal"})
+    })
+    
+
 
 app.listen(PORT_NO,()=>console.log("express run at port no :"+PORT_NO));
