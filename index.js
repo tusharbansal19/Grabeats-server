@@ -18,8 +18,8 @@ app.use("/user",router);
 // ------------main routes---------------
 app.get("/", function(req, res){
 
-res.josn({message:"hello"});
-})
+    res.json({"message":"hello"})});
+    
 
 app.get("/info", function(req, res){
 
