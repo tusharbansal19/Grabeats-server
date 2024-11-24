@@ -18,8 +18,7 @@ app.use("/user",router);
 // ------------main routes---------------
 app.get("/", function(req, res){
 
-console.log("new express.request");
-res.json({"message":"hello from server"})
+return;
 })
 
 app.get("/info", function(req, res){
