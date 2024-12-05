@@ -1,56 +1,39 @@
-let express=require("express");
-
-
+const express = require("express");
 require("dotenv").config();
-const router=require("./routes//MailRoutes");
-let cookieparser=require("cookie-parser")
-let app=express();
+const cookieParser = require("cookie-parser");
+const cors = require("cors");
+const mongoose = require("mongoose");
 
-let cors=require("cors");
-let {PORT_NO}=process.env;
-// connect("mongodb://127.0.0.1:27017/user");
+const userRoutes = require("./routes/MailRoutes");
+const postRoutes = require("./routes/postRoutes");
 
-const mongoose = require('mongoose');
-const postRoutes = require('./routes/postRoutes');
-
-app.use(cors());
-app.use(express.json()); 
-app.use(cookieparser())
-app.use("/user",router);
-
-
-//----------------------------------------------------------------
-
-
+const app = express();
+const { PORT_NO, MONGO_URI } = process.env;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Routes
-
+app.use(cookieParser());
 
 // Connect to MongoDB
 mongoose
-  .connect(process.env.MONGO_URI, { })
-  .then(() => {console.log("mongoodb connected ")})
-  .catch((err) => console.log(err));
+  .connect(MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("Error connecting to MongoDB:", err));
 
+// Routes
+app.use("/user", userRoutes);
+app.use("/api", postRoutes);
 
+// Main Routes
+app.get("/", (req, res) => {
+  res.json({ message: "Hello" });
+});
 
+app.get("/info", (req, res) => {
+  console.log("New Express request");
+  res.json({ message: "This server is deployed by Tushar Bansal" });
+});
 
-
-// ------------main routes---------------
-app.get("/", function(req, res){
-
-    res.json({"message":"hello"})});
-    
-
-app.get("/info", function(req, res){
-
-    console.log("new express.request");
-    res.json({"message":"this server id deployed by tushar bansal"})
-    })
-    app.use('/api', postRoutes);
-
-app.listen(PORT_NO,()=>console.log("express run at port no :"+PORT_NO));
+// Start the server
+app.listen(PORT_NO, () => console.log(`Express running at port ${PORT_NO}`));
