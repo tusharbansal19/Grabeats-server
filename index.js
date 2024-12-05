@@ -1,5 +1,6 @@
 let express=require("express");
 
+
 require("dotenv").config();
 const router=require("./routes//MailRoutes");
 let cookieparser=require("cookie-parser")
@@ -9,11 +10,35 @@ let cors=require("cors");
 let {PORT_NO}=process.env;
 // connect("mongodb://127.0.0.1:27017/user");
 
+const mongoose = require('mongoose');
+const postRoutes = require('./routes/postRoutes');
 
 app.use(cors());
 app.use(express.json()); 
 app.use(cookieparser())
-app.use("/user",router);    
+app.use("/user",router);
+
+
+//----------------------------------------------------------------
+
+
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Routes
+
+
+// Connect to MongoDB
+mongoose
+  .connect(process.env.MONGO_URI, { })
+  .then(() => {console.log("mongoodb connected ")})
+  .catch((err) => console.log(err));
+
+
+
+
 
 // ------------main routes---------------
 app.get("/", function(req, res){
@@ -26,6 +51,6 @@ app.get("/info", function(req, res){
     console.log("new express.request");
     res.json({"message":"this server id deployed by tushar bansal"})
     })
-
+    app.use('/api', postRoutes);
 
 app.listen(PORT_NO,()=>console.log("express run at port no :"+PORT_NO));
