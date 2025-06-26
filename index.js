@@ -11,8 +11,10 @@ const cron = require('node-cron');
 const cors = require("cors");
 const mongoose = require("mongoose");
 const Drouter=require("./routes/Mydiary")
+const grabeatsRoutes = require("./routes/grabeats");
 const app = express();
 const { PORT_NO, MONGO_URI } = process.env;
+require("./pingUrls");
 
 app.use(express.json()); // Built-in middleware for parsing JSON bodies
 // Middleware
@@ -34,6 +36,7 @@ app.use("/auth", authRoutes);
 app.use("/tasks", authenticate, taskRoutes);
 app.use("/diary",Drouter)
 app.use('/dailytasks', dailytaskRoutes);
+app.use("/grabeats", grabeatsRoutes);
 // Test routes
 app.get("/", (req, res) => {
   res.json({ message: "Hello" });
