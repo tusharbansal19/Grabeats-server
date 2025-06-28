@@ -8,399 +8,17 @@ const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 require('dotenv').config();
 
+// Import MongoDB models
+const Dish = require('../models/Dish');
+const Cart = require('../models/Cart');
+const User = require('../models/User');
+
 const router = express.Router();
 const PORT = process.env.PORT || 8000;
 
-// ==================== USER MODEL ====================
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Please provide a name'],
-    trim: true,
-    maxlength: [50, 'Name cannot be more than 50 characters']
-  },
-  email: {
-    type: String,
-    required: [true, 'Please provide an email'],
-    unique: true,
-    lowercase: true,
-    match: [
-      /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-      'Please provide a valid email'
-    ]
-  },
-  password: {
-    type: String,
-    required: [true, 'Please provide a password'],
-    minlength: [6, 'Password must be at least 6 characters'],
-    select: false
-  },
-  phone: {
-    type: String,
-    required: [true, 'Please provide a phone number'],
-    match: [/^\d{10}$/, 'Please provide a valid 10-digit phone number']
-  },
-  role: {
-    type: String,
-    enum: ['user', 'admin'],
-    default: 'user'
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  lastLogin: {
-    type: Date,
-    default: Date.now
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
-}, {
-  timestamps: true
-});
-
-// Encrypt password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    next();
-  }
-  
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-});
-
-// Sign JWT and return
-userSchema.methods.getSignedJwtToken = function() {
-  return jwt.sign(
-    { id: this._id, email: this.email, role: this.role },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRE }
-  );
-};
-
-// Match user entered password to hashed password in database
-userSchema.methods.matchPassword = async function(enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
-};
-
-// Update last login
-userSchema.methods.updateLastLogin = function() {
-  this.lastLogin = Date.now();
-  return this.save();
-};
-
-const User = mongoose.model('User', userSchema);
-
-// ==================== DISHES DATA ====================
-
-// Sample dishes data
-const dishes = [
-    {
-        ID: 24,
-        Product_Name: "Cauliflower Pizza",
-        Product_Description: "A gluten-free pizza base made from cauliflower.",
-        Product_Rating: 4.3,
-        get_product_category: {
-            ID: 406,
-            Product_Category: "Pizza",
-            Picture_Url: "https://thumbs.dreamstime.com/b/cauliflower-pizza-crust-gluten-free-healthy-alternative-traditional-pizza-base-close-up-view-216123456.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1037,
-                Picture_URL: "https://thumbs.dreamstime.com/b/pizza-large-extra-toppings-close-up-view-216123457.jpg",
-                Attribute_Combination: "Large, Extra Toppings",
-                Product_Price: 12.99,
-                Product_Discount_Price: 10.99
-            },
-            {
-                Product_ID: 1038,
-                Picture_URL: "https://thumbs.dreamstime.com/b/pizza-small-no-toppings-close-up-view-216123458.jpg",
-                Attribute_Combination: "Small, No Toppings",
-                Product_Price: 8.99,
-                Product_Discount_Price: 7.49
-            }
-        ]
-    },
-    {
-        ID: 28,
-        Product_Name: "Greek Salad",
-        Product_Description: "A fresh salad with tomatoes, cucumber, olives, and feta cheese.",
-        Product_Rating: 4.4,
-        get_product_category: {
-            ID: 410,
-            Product_Category: "Salad",
-            Picture_Url: "https://thumbs.dreamstime.com/b/greek-salad-fresh-tomatoes-cucumber-olives-feta-cheese-216123459.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1045,
-                Picture_URL: "https://thumbs.dreamstime.com/b/greek-salad-large-extra-feta-216123460.jpg",
-                Attribute_Combination: "Large, Extra Feta",
-                Product_Price: 9.99,
-                Product_Discount_Price: 7.99
-            },
-            {
-                Product_ID: 1046,
-                Picture_URL: "https://thumbs.dreamstime.com/b/greek-salad-small-no-feta-216123461.jpg",
-                Attribute_Combination: "Small, No Feta",
-                Product_Price: 6.99,
-                Product_Discount_Price: 5.99
-            }
-        ]
-    },
-    {
-        ID: 25,
-        Product_Name: "Quinoa Bowl",
-        Product_Description: "A nutritious bowl of quinoa with vegetables and spices.",
-        Product_Rating: 4.6,
-        get_product_category: {
-            ID: 407,
-            Product_Category: "Salad",
-            Picture_Url: "https://thumbs.dreamstime.com/b/quinoa-bowl-nutritious-vegetables-spices-216123462.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1039,
-                Picture_URL: "https://thumbs.dreamstime.com/b/quinoa-bowl-large-extra-avocado-216123463.jpg",
-                Attribute_Combination: "Large, Extra Avocado",
-                Product_Price: 11.99,
-                Product_Discount_Price: 9.99
-            },
-            {
-                Product_ID: 1040,
-                Picture_URL: "https://thumbs.dreamstime.com/b/quinoa-bowl-small-no-avocado-216123464.jpg",
-                Attribute_Combination: "Small, No Avocado",
-                Product_Price: 7.99,
-                Product_Discount_Price: 6.49
-            }
-        ]
-    },
-    {
-        ID: 22,
-        Product_Name: "Vegetable Stir Fry",
-        Product_Description: "A colorful mix of vegetables sautéed with soy sauce.",
-        Product_Rating: 4.5,
-        get_product_category: {
-            ID: 404,
-            Product_Category: "Main Course",
-            Picture_Url: "https://thumbs.dreamstime.com/b/vegetable-stir-fry-colorful-vegetables-sauteed-soy-sauce-216123465.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1033,
-                Picture_URL: "https://thumbs.dreamstime.com/b/stir-fry-large-extra-sauce-216123466.jpg",
-                Attribute_Combination: "Large, Extra Sauce",
-                Product_Price: 10.99,
-                Product_Discount_Price: 8.99
-            },
-            {
-                Product_ID: 1034,
-                Picture_URL: "https://thumbs.dreamstime.com/b/stir-fry-small-no-sauce-216123467.jpg",
-                Attribute_Combination: "Small, No Sauce",
-                Product_Price: 7.99,
-                Product_Discount_Price: 6.49
-            }
-        ]
-    },
-    {
-        ID: 26,
-        Product_Name: "Spinach Lasagna",
-        Product_Description: "Layers of pasta, spinach, and ricotta cheese.",
-        Product_Rating: 4.7,
-        get_product_category: {
-            ID: 408,
-            Product_Category: "Main Course",
-            Picture_Url: "https://thumbs.dreamstime.com/b/spinach-lasagna-layers-pasta-spinach-ricotta-cheese-216123468.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1041,
-                Picture_URL: "https://thumbs.dreamstime.com/b/lasagna-large-extra-cheese-216123469.jpg",
-                Attribute_Combination: "Large, Extra Cheese",
-                Product_Price: 13.99,
-                Product_Discount_Price: 11.99
-            },
-            {
-                Product_ID: 1042,
-                Picture_URL: "https://thumbs.dreamstime.com/b/lasagna-small-no-cheese-216123470.jpg",
-                Attribute_Combination: "Small, No Cheese",
-                Product_Price: 9.99,
-                Product_Discount_Price: 7.99
-            }
-        ]
-    },
-    {
-        ID: 34,
-        Product_Name: "Baked Ziti",
-        Product_Description: "Ziti pasta baked with marinara sauce and cheese.",
-        Product_Rating: 4.6,
-        get_product_category: {
-            ID: 416,
-            Product_Category: "Pasta",
-            Picture_Url: "https://thumbs.dreamstime.com/b/baked-ziti-pasta-marinara-sauce-cheese-216123471.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1057,
-                Picture_URL: "https://thumbs.dreamstime.com/b/ziti-large-extra-marinara-216123472.jpg",
-                Attribute_Combination: "Large, Extra Marinara",
-                Product_Price: 13.99,
-                Product_Discount_Price: 11.99
-            },
-            {
-                Product_ID: 1058,
-                Picture_URL: "https://thumbs.dreamstime.com/b/ziti-small-no-marinara-216123473.jpg",
-                Attribute_Combination: "Small, No Marinara",
-                Product_Price: 9.99,
-                Product_Discount_Price: 7.99
-            }
-        ]
-    },
-    {
-        ID: 33,
-        Product_Name: "Pasta Primavera",
-        Product_Description: "Pasta tossed with fresh vegetables and olive oil.",
-        Product_Rating: 4.9,
-        get_product_category: {
-            ID: 415,
-            Product_Category: "Pasta",
-            Picture_Url: "https://thumbs.dreamstime.com/b/pasta-primavera-fresh-vegetables-olive-oil-216123474.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1055,
-                Picture_URL: "https://thumbs.dreamstime.com/b/pasta-large-extra-olive-oil-216123475.jpg",
-                Attribute_Combination: "Large, Extra Olive Oil",
-                Product_Price: 12.99,
-                Product_Discount_Price: 10.99
-            },
-            {
-                Product_ID: 1056,
-                Picture_URL: "https://thumbs.dreamstime.com/b/pasta-small-no-olive-oil-216123476.jpg",
-                Attribute_Combination: "Small, No Olive Oil",
-                Product_Price: 8.99,
-                Product_Discount_Price: 7.49
-            }
-        ]
-    },
-    {
-        ID: 23,
-        Product_Name: "Mushroom Risotto",
-        Product_Description: "Creamy risotto with fresh mushrooms and herbs.",
-        Product_Rating: 4.9,
-        get_product_category: {
-            ID: 405,
-            Product_Category: "Main Course",
-            Picture_Url: "https://thumbs.dreamstime.com/b/mushroom-risotto-creamy-fresh-mushrooms-herbs-216123477.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1035,
-                Picture_URL: "https://thumbs.dreamstime.com/b/risotto-large-extra-parmesan-216123478.jpg",
-                Attribute_Combination: "Large, Extra Parmesan",
-                Product_Price: 14.99,
-                Product_Discount_Price: 12.99
-            },
-            {
-                Product_ID: 1036,
-                Picture_URL: "https://thumbs.dreamstime.com/b/risotto-small-no-parmesan-216123479.jpg",
-                Attribute_Combination: "Small, No Parmesan",
-                Product_Price: 9.99,
-                Product_Discount_Price: 8.49
-            }
-        ]
-    },
-    {
-        ID: 29,
-        Product_Name: "Lentil Soup",
-        Product_Description: "A hearty soup made with lentils and spices.",
-        Product_Rating: 4.6,
-        get_product_category: {
-            ID: 411,
-            Product_Category: "Soup",
-            Picture_Url: "https://thumbs.dreamstime.com/b/lentil-soup-hearty-lentils-spices-216123480.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1047,
-                Picture_URL: "https://thumbs.dreamstime.com/b/lentil-large-extra-spices-216123481.jpg",
-                Attribute_Combination: "Large, Extra Spices",
-                Product_Price: 8.99,
-                Product_Discount_Price: 7.49
-            },
-            {
-                Product_ID: 1048,
-                Picture_URL: "https://thumbs.dreamstime.com/b/lentil-small-no-spices-216123482.jpg",
-                Attribute_Combination: "Small, No Spices",
-                Product_Price: 5.99,
-                Product_Discount_Price: 4.99
-            }
-        ]
-    },
-    {
-        ID: 27,
-        Product_Name: "Eggplant Parmesan",
-        Product_Description: "Baked eggplant with marinara sauce and cheese.",
-        Product_Rating: 4.5,
-        get_product_category: {
-            ID: 409,
-            Product_Category: "Main Course",
-            Picture_Url: "https://thumbs.dreamstime.com/b/eggplant-parmesan-baked-marinara-sauce-cheese-216123483.jpg"
-        },
-        get_all_products: [
-            {
-                Product_ID: 1043,
-                Picture_URL: "https://thumbs.dreamstime.com/b/eggplant-large-extra-marinara-216123484.jpg",
-                Attribute_Combination: "Large, Extra Marinara",
-                Product_Price: 12.99,
-                Product_Discount_Price: 10.99
-            },
-            {
-                Product_ID: 1044,
-                Picture_URL: "https://thumbs.dreamstime.com/b/eggplant-small-no-marinara-216123485.jpg",
-                Attribute_Combination: "Small, No Marinara",
-                Product_Price: 8.99,
-                Product_Discount_Price: 7.49
-            }
-        ]
-    }
-];
-
-// ==================== CART DATA ====================
-
-// Sample cart data
-const carts = [
-    {
-        email: "anutushi10@gmail.com",
-        cart: [
-            {
-                ID: 24,
-                Product_Name: "Cauliflower Pizza",
-                Product_Description: "A gluten-free pizza base made from cauliflower.",
-                Product_Rating: 4.3,
-                get_product_category: {
-                    ID: 406,
-                    Product_Category: "Pizza",
-                    Picture_Url: "https://example.com/images/cauliflower_pizza.jpg"
-                },
-                Attribute_Combination: "Large, Extra Toppings",
-                Product_Price: 12.99,
-                Product_Discount_Price: 10.99,
-                image: "https://example.com/images/pizza_large.jpg",
-                quantity: 2
-            }
-        ]
-    }
-];
-
 // ==================== MIDDLEWARE ====================
+
+// Note: Dishes and Carts are now stored in MongoDB using Dish and Cart models
 
 // Protect routes
 const protect = async (req, res, next) => {
@@ -783,6 +401,47 @@ router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfileValidation, updateProfile);
 router.put('/change-password', protect, changePasswordValidation, changePassword);
 
+// POST /auth/verify-otp - Verify OTP
+router.post('/verify-otp', (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and OTP are required',
+        error: 'Missing required fields'
+      });
+    }
+
+    // Mock OTP verification (replace with actual OTP verification logic)
+    const isValidOTP = otp === '123456'; // Example: hardcoded OTP for testing
+    
+    if (!isValidOTP) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP',
+        error: 'OTP verification failed'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        email: email,
+        verified: true
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying OTP',
+      error: error.message
+    });
+  }
+});
+
 // Health check route
 router.get('/health', (req, res) => {
   res.status(200).json({
@@ -795,8 +454,10 @@ router.get('/health', (req, res) => {
 // ==================== DISH ROUTES ====================
 
 // GET /grabeats/get - Get all dishes
-router.get('/get', (req, res) => {
+router.get('/get', async (req, res) => {
     try {
+        const dishes = await Dish.find({});
+        
         res.json({
             success: true,
             message: 'Dishes retrieved successfully',
@@ -812,11 +473,10 @@ router.get('/get', (req, res) => {
     }
 });
 
-// GET /grabeats/dishes/:id - Get dish by ID
-router.get('/dishes/:id', (req, res) => {
+// GET /grabeats/get/:id - Get dish by ID
+router.get('/get/:id', async (req, res) => {
     try {
-        const dishId = parseInt(req.params.id);
-        const dish = dishes.find(d => d.ID === dishId);
+        const dish = await Dish.findOne({ ID: parseInt(req.params.id) });
         
         if (!dish) {
             return res.status(404).json({
@@ -839,20 +499,21 @@ router.get('/dishes/:id', (req, res) => {
     }
 });
 
-// GET /grabeats/dishes/category/:category - Get dishes by category
-router.get('/dishes/category/:category', (req, res) => {
+// GET /grabeats/category/:category - Get dishes by category
+router.get('/category/:category', async (req, res) => {
     try {
         const category = req.params.category;
-        const categoryDishes = dishes.filter(dish => 
-            dish.get_product_category.Product_Category.toLowerCase() === category.toLowerCase()
-        );
+        const dishes = await Dish.find({
+            'get_product_category.Product_Category': { 
+                $regex: new RegExp(category, 'i') 
+            }
+        });
         
         res.json({
             success: true,
-            message: `Dishes in category '${category}' retrieved successfully`,
-            data: categoryDishes,
-            count: categoryDishes.length,
-            category: category
+            message: `Dishes in ${category} category retrieved successfully`,
+            data: dishes,
+            count: dishes.length
         });
     } catch (error) {
         res.status(500).json({
@@ -864,13 +525,12 @@ router.get('/dishes/category/:category', (req, res) => {
 });
 
 // GET /grabeats/dishes/search/:query - Search dishes by name or description
-router.get('/dishes/search/:query', (req, res) => {
+router.get('/dishes/search/:query', async (req, res) => {
     try {
-        const query = req.params.query.toLowerCase();
-        const searchResults = dishes.filter(dish => 
-            dish.Product_Name.toLowerCase().includes(query) ||
-            dish.Product_Description.toLowerCase().includes(query)
-        );
+        const query = req.params.query;
+        const searchResults = await Dish.find({
+            $text: { $search: query }
+        });
         
         res.json({
             success: true,
@@ -889,10 +549,12 @@ router.get('/dishes/search/:query', (req, res) => {
 });
 
 // GET /grabeats/dishes/rating/:rating - Get dishes by minimum rating
-router.get('/dishes/rating/:rating', (req, res) => {
+router.get('/dishes/rating/:rating', async (req, res) => {
     try {
         const minRating = parseFloat(req.params.rating);
-        const ratedDishes = dishes.filter(dish => dish.Product_Rating >= minRating);
+        const ratedDishes = await Dish.find({
+            Product_Rating: { $gte: minRating }
+        });
         
         res.json({
             success: true,
@@ -911,9 +573,9 @@ router.get('/dishes/rating/:rating', (req, res) => {
 });
 
 // GET /grabeats/categories - Get all unique categories
-router.get('/categories', (req, res) => {
+router.get('/categories', async (req, res) => {
     try {
-        const categories = [...new Set(dishes.map(dish => dish.get_product_category.Product_Category))];
+        const categories = await Dish.distinct('get_product_category.Product_Category');
         
         res.json({
             success: true,
@@ -931,15 +593,17 @@ router.get('/categories', (req, res) => {
 });
 
 // GET /grabeats/dishes/price-range - Get dishes within price range
-router.get('/dishes/price-range', (req, res) => {
+router.get('/dishes/price-range', async (req, res) => {
     try {
         const { min, max } = req.query;
         const minPrice = min ? parseFloat(min) : 0;
         const maxPrice = max ? parseFloat(max) : Infinity;
         
-        const priceRangeDishes = dishes.filter(dish => {
-            const minDishPrice = Math.min(...dish.get_all_products.map(p => p.Product_Discount_Price));
-            return minDishPrice >= minPrice && minDishPrice <= maxPrice;
+        const priceRangeDishes = await Dish.find({
+            'get_all_products.Product_Discount_Price': {
+                $gte: minPrice,
+                $lte: maxPrice === Infinity ? 999999 : maxPrice
+            }
         });
         
         res.json({
@@ -959,12 +623,13 @@ router.get('/dishes/price-range', (req, res) => {
 });
 
 // GET /grabeats/dishes/featured - Get featured dishes (highly rated)
-router.get('/dishes/featured', (req, res) => {
+router.get('/dishes/featured', async (req, res) => {
     try {
-        const featuredDishes = dishes
-            .filter(dish => dish.Product_Rating >= 4.5)
-            .sort((a, b) => b.Product_Rating - a.Product_Rating)
-            .slice(0, 6); // Top 6 featured dishes
+        const featuredDishes = await Dish.find({
+            Product_Rating: { $gte: 4.5 }
+        })
+        .sort({ Product_Rating: -1 })
+        .limit(6);
         
         res.json({
             success: true,
@@ -982,19 +647,34 @@ router.get('/dishes/featured', (req, res) => {
 });
 
 // GET /grabeats/dishes/popular - Get popular dishes (based on rating and price)
-router.get('/dishes/popular', (req, res) => {
+router.get('/dishes/popular', async (req, res) => {
     try {
-        const popularDishes = dishes
-            .map(dish => ({
-                ...dish,
-                popularityScore: dish.Product_Rating * (1 / Math.min(...dish.get_all_products.map(p => p.Product_Discount_Price)))
-            }))
-            .sort((a, b) => b.popularityScore - a.popularityScore)
-            .slice(0, 8) // Top 8 popular dishes
-            .map(dish => {
-                const { popularityScore, ...dishWithoutScore } = dish;
-                return dishWithoutScore;
-            });
+        const popularDishes = await Dish.aggregate([
+            {
+                $addFields: {
+                    minPrice: { $min: '$get_all_products.Product_Discount_Price' }
+                }
+            },
+            {
+                $addFields: {
+                    popularityScore: {
+                        $multiply: ['$Product_Rating', { $divide: [1, '$minPrice'] }]
+                    }
+                }
+            },
+            {
+                $sort: { popularityScore: -1 }
+            },
+            {
+                $limit: 8
+            },
+            {
+                $project: {
+                    popularityScore: 0,
+                    minPrice: 0
+                }
+            }
+        ]);
         
         res.json({
             success: true,
@@ -1012,11 +692,16 @@ router.get('/dishes/popular', (req, res) => {
 });
 
 // GET /grabeats/dishes/on-sale - Get dishes with discounts
-router.get('/dishes/on-sale', (req, res) => {
+router.get('/dishes/on-sale', async (req, res) => {
     try {
-        const onSaleDishes = dishes.filter(dish => 
-            dish.get_all_products.some(product => product.Product_Discount_Price < product.Product_Price)
-        );
+        const onSaleDishes = await Dish.find({
+            $expr: {
+                $gt: [
+                    { $min: '$get_all_products.Product_Price' },
+                    { $min: '$get_all_products.Product_Discount_Price' }
+                ]
+            }
+        });
         
         res.json({
             success: true,
@@ -1033,10 +718,370 @@ router.get('/dishes/on-sale', (req, res) => {
     }
 });
 
+// POST /grabeats/dishes - Add new dish
+router.post('/dishes', async (req, res) => {
+    try {
+        const newDish = req.body;
+        
+        // Create new dish in MongoDB
+        const dish = await Dish.create(newDish);
+        
+        res.status(201).json({
+            success: true,
+            message: 'Dish added successfully',
+            data: dish
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error adding dish',
+            error: error.message
+        });
+    }
+});
+
+// PUT /grabeats/dishes/:id - Update dish
+router.put('/dishes/:id', async (req, res) => {
+    try {
+        const dishId = parseInt(req.params.id);
+        const updateData = req.body;
+        
+        const dish = await Dish.findOneAndUpdate(
+            { ID: dishId },
+            updateData,
+            { new: true, runValidators: true }
+        );
+        
+        if (!dish) {
+            return res.status(404).json({
+                success: false,
+                message: 'Dish not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Dish updated successfully',
+            data: dish
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error updating dish',
+            error: error.message
+        });
+    }
+});
+
+// DELETE /grabeats/dishes/:id - Delete dish
+router.delete('/dishes/:id', async (req, res) => {
+    try {
+        const dishId = parseInt(req.params.id);
+        
+        const deletedDish = await Dish.findOneAndDelete({ ID: dishId });
+        
+        if (!deletedDish) {
+            return res.status(404).json({
+                success: false,
+                message: 'Dish not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Dish deleted successfully',
+            data: deletedDish
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error deleting dish',
+            error: error.message
+        });
+    }
+});
+
+// GET /grabeats/dishes/stats - Get dish statistics
+router.get('/dishes/stats', async (req, res) => {
+    try {
+        const stats = await Dish.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    totalDishes: { $sum: 1 },
+                    avgRating: { $avg: '$Product_Rating' },
+                    maxRating: { $max: '$Product_Rating' },
+                    minRating: { $min: '$Product_Rating' },
+                    totalCategories: { $addToSet: '$get_product_category.Product_Category' }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    totalDishes: 1,
+                    avgRating: { $round: ['$avgRating', 2] },
+                    maxRating: 1,
+                    minRating: 1,
+                    totalCategories: { $size: '$totalCategories' }
+                }
+            }
+        ]);
+
+        res.json({
+            success: true,
+            message: 'Dish statistics retrieved successfully',
+            data: stats[0] || {
+                totalDishes: 0,
+                avgRating: 0,
+                maxRating: 0,
+                minRating: 0,
+                totalCategories: 0
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error retrieving dish statistics',
+            error: error.message
+        });
+    }
+});
+
+// GET /grabeats/dishes/category-stats - Get statistics by category
+router.get('/dishes/category-stats', async (req, res) => {
+    try {
+        const categoryStats = await Dish.aggregate([
+            {
+                $group: {
+                    _id: '$get_product_category.Product_Category',
+                    count: { $sum: 1 },
+                    avgRating: { $avg: '$Product_Rating' },
+                    avgPrice: { $avg: { $min: '$get_all_products.Product_Discount_Price' } }
+                }
+            },
+            {
+                $project: {
+                    category: '$_id',
+                    count: 1,
+                    avgRating: { $round: ['$avgRating', 2] },
+                    avgPrice: { $round: ['$avgPrice', 2] },
+                    _id: 0
+                }
+            },
+            {
+                $sort: { count: -1 }
+            }
+        ]);
+
+        res.json({
+            success: true,
+            message: 'Category statistics retrieved successfully',
+            data: categoryStats
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error retrieving category statistics',
+            error: error.message
+        });
+    }
+});
+
+// GET /grabeats/dishes/price-analysis - Get price analysis
+router.get('/dishes/price-analysis', async (req, res) => {
+    try {
+        const priceAnalysis = await Dish.aggregate([
+            {
+                $addFields: {
+                    minPrice: { $min: '$get_all_products.Product_Discount_Price' },
+                    maxPrice: { $max: '$get_all_products.Product_Discount_Price' }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    avgMinPrice: { $avg: '$minPrice' },
+                    avgMaxPrice: { $avg: '$maxPrice' },
+                    totalMinPrice: { $sum: '$minPrice' },
+                    totalMaxPrice: { $sum: '$maxPrice' },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    avgMinPrice: { $round: ['$avgMinPrice', 2] },
+                    avgMaxPrice: { $round: ['$avgMaxPrice', 2] },
+                    totalMinPrice: { $round: ['$totalMinPrice', 2] },
+                    totalMaxPrice: { $round: ['$totalMaxPrice', 2] },
+                    count: 1
+                }
+            }
+        ]);
+
+        res.json({
+            success: true,
+            message: 'Price analysis retrieved successfully',
+            data: priceAnalysis[0] || {
+                avgMinPrice: 0,
+                avgMaxPrice: 0,
+                totalMinPrice: 0,
+                totalMaxPrice: 0,
+                count: 0
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error retrieving price analysis',
+            error: error.message
+        });
+    }
+});
+
+// GET /grabeats/dishes/paginated - Get dishes with pagination
+router.get('/dishes/paginated', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const sortBy = req.query.sortBy || 'Product_Name';
+        const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
+        const category = req.query.category;
+        const minRating = req.query.minRating ? parseFloat(req.query.minRating) : 0;
+        const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice) : Infinity;
+
+        // Build filter object
+        const filter = {};
+        if (category) {
+            filter['get_product_category.Product_Category'] = { 
+                $regex: new RegExp(category, 'i') 
+            };
+        }
+        if (minRating > 0) {
+            filter.Product_Rating = { $gte: minRating };
+        }
+        if (maxPrice !== Infinity) {
+            filter['get_all_products.Product_Discount_Price'] = { $lte: maxPrice };
+        }
+
+        // Calculate skip value for pagination
+        const skip = (page - 1) * limit;
+
+        // Get total count for pagination info
+        const totalCount = await Dish.countDocuments(filter);
+
+        // Get dishes with pagination
+        const dishes = await Dish.find(filter)
+            .sort({ [sortBy]: sortOrder })
+            .skip(skip)
+            .limit(limit);
+
+        const totalPages = Math.ceil(totalCount / limit);
+
+        res.json({
+            success: true,
+            message: 'Dishes retrieved successfully with pagination',
+            data: dishes,
+            pagination: {
+                currentPage: page,
+                totalPages: totalPages,
+                totalCount: totalCount,
+                limit: limit,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error retrieving dishes with pagination',
+            error: error.message
+        });
+    }
+});
+
+// GET /grabeats/dishes/advanced-search - Advanced search with multiple criteria
+router.get('/dishes/advanced-search', async (req, res) => {
+    try {
+        const {
+            search,
+            category,
+            minRating,
+            maxRating,
+            minPrice,
+            maxPrice,
+            sortBy,
+            sortOrder
+        } = req.query;
+
+        // Build filter object
+        const filter = {};
+
+        // Text search
+        if (search) {
+            filter.$text = { $search: search };
+        }
+
+        // Category filter
+        if (category) {
+            filter['get_product_category.Product_Category'] = { 
+                $regex: new RegExp(category, 'i') 
+            };
+        }
+
+        // Rating range
+        if (minRating || maxRating) {
+            filter.Product_Rating = {};
+            if (minRating) filter.Product_Rating.$gte = parseFloat(minRating);
+            if (maxRating) filter.Product_Rating.$lte = parseFloat(maxRating);
+        }
+
+        // Price range
+        if (minPrice || maxPrice) {
+            filter['get_all_products.Product_Discount_Price'] = {};
+            if (minPrice) filter['get_all_products.Product_Discount_Price'].$gte = parseFloat(minPrice);
+            if (maxPrice) filter['get_all_products.Product_Discount_Price'].$lte = parseFloat(maxPrice);
+        }
+
+        // Sort options
+        const sortOptions = {};
+        if (sortBy) {
+            sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+        } else {
+            sortOptions.Product_Name = 1; // Default sort
+        }
+
+        const dishes = await Dish.find(filter).sort(sortOptions);
+
+        res.json({
+            success: true,
+            message: 'Advanced search completed successfully',
+            data: dishes,
+            count: dishes.length,
+            filters: {
+                search,
+                category,
+                minRating,
+                maxRating,
+                minPrice,
+                maxPrice,
+                sortBy,
+                sortOrder
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error performing advanced search',
+            error: error.message
+        });
+    }
+});
+
 // ==================== CART ROUTES ====================
 
 // GET /grabeats/mycart/get - Get user cart
-router.get('/mycart/get', (req, res) => {
+router.get('/mycart/get', async (req, res) => {
   const { email } = req.query;
   
   if (!email) {
@@ -1048,19 +1093,16 @@ router.get('/mycart/get', (req, res) => {
   }
 
   try {
-    // Find cart for the given email
-    const userCart = carts.find(cart => cart.email === email);
+    // Find cart for the given email in MongoDB
+    let userCart = await Cart.findOne({ email });
     
     if (!userCart) {
       return res.json({
         success: true,
         message: 'Cart retrieved successfully',
-        data: {
-          email: email,
-          cart: [],
-          totalItems: 0,
-          totalPrice: 0
-        }
+        cart: [],         // <-- THIS IS WHAT REDUX EXPECTS!
+        totalItems: 0,
+        totalPrice: 0
       });
     }
 
@@ -1070,12 +1112,9 @@ router.get('/mycart/get', (req, res) => {
     res.json({
       success: true,
       message: 'Cart retrieved successfully',
-      data: {
-        email: email,
-        cart: userCart.cart,
-        totalItems: totalItems,
-        totalPrice: totalPrice
-      }
+      cart: userCart.cart,         // <-- THIS IS WHAT REDUX EXPECTS!
+      totalItems: totalItems,
+      totalPrice: totalPrice
     });
   } catch (error) {
     res.status(500).json({
@@ -1087,57 +1126,59 @@ router.get('/mycart/get', (req, res) => {
 });
 
 // POST /grabeats/mycart/add - Add item to cart
-router.post('/mycart/add', (req, res) => {
-  const { email, item } = req.body;
-  
-  if (!email || !item) {
+router.post('/mycart/add', async (req, res) => {
+
+  const { email, item, product } = req.body;
+  const itemToAdd = item || product;
+
+  if (!email || !itemToAdd) {
     return res.status(400).json({
       success: false,
-      message: 'Email and item are required',
+      message: 'Email and item/product are required',
       error: 'Missing required fields'
     });
   }
 
   try {
-    let userCart = carts.find(cart => cart.email === email);
+    let userCart = await Cart.findOne({ email });
     
     if (!userCart) {
-      // Create new cart for user
-      userCart = {
-        email: email,
-        cart: []
-      };
-      carts.push(userCart);
+      userCart = new Cart({ email, cart: [] });
     }
 
-    // Check if item already exists in cart
-    const existingItemIndex = userCart.cart.findIndex(cartItem => 
-      cartItem.ID === item.ID && cartItem.Attribute_Combination === item.Attribute_Combination
+    const existingItemIndex = userCart.cart.findIndex(cartItem =>
+      cartItem.ID === itemToAdd.ID && cartItem.Attribute_Combination === itemToAdd.Attribute_Combination
     );
 
     if (existingItemIndex !== -1) {
-      // Update quantity if item exists
-      userCart.cart[existingItemIndex].quantity += item.quantity || 1;
+      userCart.cart[existingItemIndex].quantity += itemToAdd.quantity || 1;
     } else {
-      // Add new item to cart
       userCart.cart.push({
-        ...item,
-        quantity: item.quantity || 1
+        ...itemToAdd,
+        quantity: itemToAdd.quantity || 1
       });
     }
+
+    // Save to MongoDB
+    await userCart.save();
 
     const totalItems = userCart.cart.reduce((sum, cartItem) => sum + cartItem.quantity, 0);
     const totalPrice = userCart.cart.reduce((sum, cartItem) => sum + (cartItem.Product_Discount_Price * cartItem.quantity), 0);
 
+    console.log("totalItems",{
+      success: true,
+      message: 'Item added to cart successfully',
+      cart: userCart.cart,         // <-- THIS IS WHAT REDUX EXPECTS!
+      totalItems: totalItems,
+      totalPrice: totalPrice
+    });
+
     res.json({
       success: true,
       message: 'Item added to cart successfully',
-      data: {
-        email: email,
-        cart: userCart.cart,
-        totalItems: totalItems,
-        totalPrice: totalPrice
-      }
+      cart: userCart.cart,         // <-- THIS IS WHAT REDUX EXPECTS!
+      totalItems: totalItems,
+      totalPrice: totalPrice
     });
   } catch (error) {
     res.status(500).json({
@@ -1149,7 +1190,7 @@ router.post('/mycart/add', (req, res) => {
 });
 
 // PUT /grabeats/mycart/update - Update item quantity in cart
-router.put('/mycart/update', (req, res) => {
+router.put('/mycart/update', async (req, res) => {
   const { email, itemId, attributeCombination, quantity } = req.body;
   
   if (!email || !itemId || !attributeCombination || quantity === undefined) {
@@ -1161,7 +1202,7 @@ router.put('/mycart/update', (req, res) => {
   }
 
   try {
-    const userCart = carts.find(cart => cart.email === email);
+    const userCart = await Cart.findOne({ email });
     
     if (!userCart) {
       return res.status(404).json({
@@ -1191,6 +1232,9 @@ router.put('/mycart/update', (req, res) => {
       userCart.cart[itemIndex].quantity = quantity;
     }
 
+    // Save to MongoDB
+    await userCart.save();
+
     const totalItems = userCart.cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalPrice = userCart.cart.reduce((sum, item) => sum + (item.Product_Discount_Price * item.quantity), 0);
 
@@ -1214,7 +1258,7 @@ router.put('/mycart/update', (req, res) => {
 });
 
 // DELETE /grabeats/mycart/remove - Remove item from cart
-router.delete('/mycart/remove', (req, res) => {
+router.delete('/mycart/remove', async (req, res) => {
   const { email, itemId, attributeCombination } = req.body;
   
   if (!email || !itemId || !attributeCombination) {
@@ -1226,7 +1270,7 @@ router.delete('/mycart/remove', (req, res) => {
   }
 
   try {
-    const userCart = carts.find(cart => cart.email === email);
+    const userCart = await Cart.findOne({ email });
     
     if (!userCart) {
       return res.status(404).json({
@@ -1251,6 +1295,9 @@ router.delete('/mycart/remove', (req, res) => {
     // Remove item from cart
     userCart.cart.splice(itemIndex, 1);
 
+    // Save to MongoDB
+    await userCart.save();
+
     const totalItems = userCart.cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalPrice = userCart.cart.reduce((sum, item) => sum + (item.Product_Discount_Price * item.quantity), 0);
 
@@ -1274,7 +1321,7 @@ router.delete('/mycart/remove', (req, res) => {
 });
 
 // DELETE /grabeats/mycart/clear - Clear entire cart
-router.delete('/mycart/clear', (req, res) => {
+router.delete('/mycart/clear', async (req, res) => {
   const { email } = req.body;
   
   if (!email) {
@@ -1286,7 +1333,7 @@ router.delete('/mycart/clear', (req, res) => {
   }
 
   try {
-    const userCart = carts.find(cart => cart.email === email);
+    const userCart = await Cart.findOne({ email });
     
     if (!userCart) {
       return res.status(404).json({
@@ -1298,6 +1345,9 @@ router.delete('/mycart/clear', (req, res) => {
 
     // Clear cart
     userCart.cart = [];
+
+    // Save to MongoDB
+    await userCart.save();
 
     res.json({
       success: true,
@@ -1313,6 +1363,80 @@ router.delete('/mycart/clear', (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error clearing cart',
+      error: error.message
+    });
+  }
+});
+
+// DELETE /grabeats/mycart/delete - Remove item from cart (alternative endpoint)
+router.delete('/mycart/delete', async (req, res) => {
+  const { email, itemId, attributeCombination, ID, Attribute_Combination, productId } = req.body;
+  
+  // Accept multiple formats: itemId/ID/productId and attributeCombination/Attribute_Combination
+  const finalItemId = itemId || ID || productId;
+  const finalAttributeCombination = attributeCombination || Attribute_Combination;
+  
+  if (!email || !finalItemId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email and itemId/ID/productId are required',
+      error: 'Missing required fields',
+      received: { email, itemId, attributeCombination, ID, Attribute_Combination, productId }
+    });
+  }
+
+  try {
+    const userCart = await Cart.findOne({ email });
+    
+    if (!userCart) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cart not found',
+        error: 'No cart exists for this email'
+      });
+    }
+
+    // If no attributeCombination provided, remove all items with that productId
+    let itemIndex;
+    if (finalAttributeCombination) {
+      itemIndex = userCart.cart.findIndex(item => 
+        item.ID === finalItemId && item.Attribute_Combination === finalAttributeCombination
+      );
+    } else {
+      itemIndex = userCart.cart.findIndex(item => item.ID === finalItemId);
+    }
+
+    if (itemIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found in cart',
+        error: 'Item does not exist in cart',
+        searchedFor: { itemId: finalItemId, attributeCombination: finalAttributeCombination },
+        availableItems: userCart.cart.map(item => ({ ID: item.ID, Attribute_Combination: item.Attribute_Combination }))
+      });
+    }
+
+    // Remove item from cart
+    const removedItem = userCart.cart.splice(itemIndex, 1)[0];
+
+    // Save to MongoDB
+    await userCart.save();
+
+    const totalItems = userCart.cart.reduce((sum, item) => sum + item.quantity, 0);
+    const totalPrice = userCart.cart.reduce((sum, item) => sum + (item.Product_Discount_Price * item.quantity), 0);
+
+    res.json({
+      success: true,
+      message: 'Item deleted from cart successfully',
+      cart: userCart.cart,         // <-- THIS IS WHAT REDUX EXPECTS!
+      totalItems: totalItems,
+      totalPrice: totalPrice,
+      removedItem: removedItem
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting item from cart',
       error: error.message
     });
   }

@@ -18,7 +18,7 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const { PORT_NO, MONGO_URI } = process.env;
 require("./pingUrls");
-
+// require('./seedDishes');
 // ==================== SECURITY MIDDLEWARE ====================
 
 // Security middleware
@@ -90,6 +90,7 @@ app.use((err, req, res, next) => {
     stack: process.env.NODE_ENV === "development" ? err.stack : {},
   });
 });
+
 
 // ==================== START SERVER ====================
 
