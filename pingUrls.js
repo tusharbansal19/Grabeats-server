@@ -4,7 +4,7 @@ const urlsToPing = [
   
   "https://taskserver-v7qf.onrender.com",
   "https://t-task-management.onrender.com/",
-  "https://automobiles-next.onrender.com/cars"
+  "https://automobiles-next.onrender.com/"
 
   // Add more URLs as needed
 ];
