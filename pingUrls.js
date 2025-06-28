@@ -1,9 +1,11 @@
 const fetch = require("node-fetch"); // or use global fetch in Node 18+
 
 const urlsToPing = [
-  "https://your-next-app.onrender.com/",
-  "https://your-react-app.onrender.com/",
-  "https://your-api-server.onrender.com/api/health",
+  
+  "https://taskserver-v7qf.onrender.com",
+  "https://t-task-management.onrender.com/",
+  "https://automobiles-next.onrender.com/cars"
+
   // Add more URLs as needed
 ];
 
