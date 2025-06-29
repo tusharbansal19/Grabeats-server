@@ -39,7 +39,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CORS middleware
 app.use(cors({
-  origin: ['http://localhost:3000',"https://grabeats.netlify.app" 'http://localhost:5173', 'https://grabeats.onrender.com', "*"],
+  origin: ['http://localhost:3000',"https://grabeats.netlify.app", 'http://localhost:5173', 'https://grabeats.onrender.com', "*"],
   credentials: true
 }));
 
