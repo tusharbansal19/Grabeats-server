@@ -180,7 +180,6 @@ const register = async (req, res) => {
       user: userResponse
     });
   } catch (error) {
-    console.error('Register error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
@@ -261,7 +260,6 @@ const login = async (req, res) => {
       user: userResponse
     });
   } catch (error) {
-    console.error('Login error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
@@ -277,7 +275,6 @@ const logout = async (req, res) => {
       message: 'Logged out successfully'
     });
   } catch (error) {
-    console.error('Logout error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
@@ -295,7 +292,6 @@ const getProfile = async (req, res) => {
       user
     });
   } catch (error) {
-    console.error('Get profile error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
@@ -340,7 +336,6 @@ const updateProfile = async (req, res) => {
       user
     });
   } catch (error) {
-    console.error('Update profile error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
@@ -380,7 +375,6 @@ const changePassword = async (req, res) => {
       message: 'Password changed successfully'
     });
   } catch (error) {
-    console.error('Change password error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
@@ -1164,14 +1158,6 @@ router.post('/mycart/add', async (req, res) => {
 
     const totalItems = userCart.cart.reduce((sum, cartItem) => sum + cartItem.quantity, 0);
     const totalPrice = userCart.cart.reduce((sum, cartItem) => sum + (cartItem.Product_Discount_Price * cartItem.quantity), 0);
-
-    console.log("totalItems",{
-      success: true,
-      message: 'Item added to cart successfully',
-      cart: userCart.cart,         // <-- THIS IS WHAT REDUX EXPECTS!
-      totalItems: totalItems,
-      totalPrice: totalPrice
-    });
 
     res.json({
       success: true,
