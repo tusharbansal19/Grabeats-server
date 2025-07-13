@@ -3,8 +3,10 @@ const fetch = require("node-fetch"); // or use global fetch in Node 18+
 const urlsToPing = [
   "https://typing-webapp-backend.onrender.com/",
   "https://taskserver-v7qf.onrender.com",
+  
   "https://t-task-management.onrender.com/",
-  "https://automobiles-next.onrender.com/"
+  "https://automobiles-next.onrender.com/",
+  
 
   // Add more URLs as needed
 ];
