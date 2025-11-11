@@ -10,6 +10,8 @@ const dailytaskRoutes=require("./routes/DailytaskRoutes");
 const cron = require('node-cron');
 const cors = require("cors");
 const mongoose = require("mongoose");
+const http = require('http');
+const https = require('https');
 const Drouter=require("./routes/Mydiary")
 const grabeatsRoutes = require("./routes/grabeats");
 const helmet = require('helmet');
@@ -108,6 +110,50 @@ app.listen(PORT_NO, () => {
   console.log('  PUT /grabeats/change-password - Change password');
   console.log('  GET /grabeats/health - Health check');
 });
+
+// ==================== KEEP-ALIVE PINGER ====================
+// Pings KEEP_ALIVE_URL (or falls back to localhost health) immediately and every 7 minutes.
+// Set KEEP_ALIVE_URL in your environment if you want to ping a public URL to keep the app awake.
+const KEEP_ALIVE_URL = "https://grabeats-server.onrender.com"
+
+function pingKeepAlive() {
+  try {
+    if (!KEEP_ALIVE_URL) {
+      console.warn('KEEP_ALIVE_URL is not set — skipping keep-alive ping.');
+      return;
+    }
+
+    if (typeof fetch === 'function') {
+      fetch(KEEP_ALIVE_URL)
+        .then(() => console.log(`Pinged ${KEEP_ALIVE_URL} to stay awake`))
+        .catch(err => console.error(`Ping failed (${KEEP_ALIVE_URL}):`, err));
+      return;
+    }
+
+    const parsed = new URL(KEEP_ALIVE_URL);
+    const lib = parsed.protocol === 'https:' ? https : http;
+    const req = lib.get(parsed, (res) => {
+      res.on('data', () => {});
+      res.on('end', () => console.log(`Pinged ${KEEP_ALIVE_URL} [status: ${res.statusCode}]`));
+    });
+    req.on('error', (err) => console.error(`Ping failed (${KEEP_ALIVE_URL}):`, err));
+    req.setTimeout(5000, () => {
+      req.abort();
+    });
+  } catch (err) {
+    console.error('Ping keep-alive error:', err);
+  }
+}
+
+// Start pinging right away and then every 7 minutes
+try {
+  pingKeepAlive();
+  const _keepAliveInterval = setInterval(pingKeepAlive, 7 * 60 * 1000);
+  // keep reference to interval on process in case other modules want to clear it
+  process.keepAliveInterval = _keepAliveInterval;
+} catch (err) {
+  console.error('Failed to start keep-alive pinger:', err);
+}
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
